@@ -5,8 +5,10 @@ module Diagrams.Dendrogram
     ( -- * High-level interface
       -- $runnableExample
       dendrogram
+    , dendrogramCustom
     , Width(..)
     , dendrogram'
+    , dendrogramCustom'
 
       -- * Low-level interface
     , dendrogramPath
@@ -75,6 +77,17 @@ dendrogram :: (Monoid m, Semigroup m, Renderable (Path V2 Double) b) =>
            -> QDiagram b V2 Double m
 dendrogram = ((fst .) .) . dendrogram'
 
+-- | Same as 'dendrogram', but specifies function to apply to dendrogram and
+-- leaves (d,l).
+dendrogramCustom
+    :: (Monoid m, Semigroup m, Renderable (Path V2 Double) b)
+    => Width
+    -> (a -> QDiagram b V2 Double m)
+    -> (QDiagram b V2 Double m -> QDiagram b V2 Double m, QDiagram b V2 Double m -> QDiagram b V2 Double m)
+    -> Dendrogram a
+    -> QDiagram b V2 Double m
+dendrogramCustom = (((fst .) .) .) . dendrogramCustom'
+
 
 -- | Same as 'dendrogram', but also returns the 'Dendrogram' with
 -- positions.
@@ -88,6 +101,31 @@ dendrogram' width_ drawItem dendro = (dia, dendroX)
     dia = (stroke path_ # value mempty)
                        ===
                  (items # alignL)
+
+    path_ = dendrogramPath (fmap snd dendroX)
+
+    (dendroX, items) =
+        case width_ of
+          Fixed    -> let drawnItems = map drawItem (elements dendro)
+                          w = width (head drawnItems)
+                      in (fst $ fixedWidth w dendro, hcat drawnItems)
+          Variable -> variableWidth drawItem dendro
+
+
+-- | Same as 'dendrogram'', but specifies scaling of dendrogram and leaves
+-- (d,l).
+dendrogramCustom'
+    :: (Monoid m, Semigroup m, Renderable (Path V2 Double) b)
+    => Width
+    -> (a -> QDiagram b V2 Double m)
+    -> (QDiagram b V2 Double m -> QDiagram b V2 Double m, QDiagram b V2 Double m -> QDiagram b V2 Double m)
+    -> Dendrogram a
+    -> (QDiagram b V2 Double m, Dendrogram (a, X))
+dendrogramCustom' width_ drawItem (drawTree, drawItems) dendro = (dia, dendroX)
+  where
+    dia = (stroke path_ # value mempty # drawTree)
+                       ===
+                 (items # alignL # drawItems)
 
     path_ = dendrogramPath (fmap snd dendroX)
 
