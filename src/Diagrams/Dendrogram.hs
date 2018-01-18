@@ -77,16 +77,17 @@ dendrogram :: (Monoid m, Semigroup m, Renderable (Path V2 Double) b) =>
            -> QDiagram b V2 Double m
 dendrogram = ((fst .) .) . dendrogram'
 
--- | Same as 'dendrogram', but specifies function to apply to dendrogram and
--- leaves (d,l).
+-- | Same as 'dendrogram', but specifies function to apply to path and to
+-- dendrogram and leaves (d,l).
 dendrogramCustom
     :: (Monoid m, Semigroup m, Renderable (Path V2 Double) b)
     => Width
     -> (a -> QDiagram b V2 Double m)
+    -> (Dendrogram a -> QDiagram b V2 Double Any -> QDiagram b V2 Double Any)
     -> (QDiagram b V2 Double m -> QDiagram b V2 Double m, QDiagram b V2 Double m -> QDiagram b V2 Double m)
     -> Dendrogram a
     -> QDiagram b V2 Double m
-dendrogramCustom = (((fst .) .) .) . dendrogramCustom'
+dendrogramCustom = ((((fst .) .) .) .) . dendrogramCustom'
 
 
 -- | Same as 'dendrogram', but also returns the 'Dendrogram' with
@@ -112,22 +113,24 @@ dendrogram' width_ drawItem dendro = (dia, dendroX)
           Variable -> variableWidth drawItem dendro
 
 
--- | Same as 'dendrogram'', but specifies scaling of dendrogram and leaves
--- (d,l).
+-- | Same as 'dendrogram'', but specifies function to apply to path and to
+-- dendrogram and leaves (d,l).
 dendrogramCustom'
     :: (Monoid m, Semigroup m, Renderable (Path V2 Double) b)
     => Width
     -> (a -> QDiagram b V2 Double m)
+    -> (Dendrogram a -> QDiagram b V2 Double Any -> QDiagram b V2 Double Any)
     -> (QDiagram b V2 Double m -> QDiagram b V2 Double m, QDiagram b V2 Double m -> QDiagram b V2 Double m)
     -> Dendrogram a
     -> (QDiagram b V2 Double m, Dendrogram (a, X))
-dendrogramCustom' width_ drawItem (drawTree, drawItems) dendro = (dia, dendroX)
+dendrogramCustom' width_ drawItem drawPath (drawTree, drawItems) dendro =
+    (dia, dendroX)
   where
-    dia = (stroke path_ # value mempty # drawTree)
+    dia = (path_ # value mempty # drawTree)
                        ===
                  (items # alignL # drawItems)
 
-    path_ = dendrogramPath (fmap snd dendroX)
+    path_ = dendrogramPathCustom drawPath dendroX
 
     (dendroX, items) =
         case width_ of
@@ -167,6 +170,38 @@ dendrogramPath = mconcat . fst . go []
                               , p2 (xL, d)
                               , p2 (xR, d)
                               , p2 (xR, yR)]
+          pos  = (xL + (xR - xL) / 2, d)
+          
+-- | A dendrogram diagram. This function assumes that the 'Leaf'@s@ of your
+-- 'Dendrogram' are already in the right position. Allows for a custom function
+-- to apply to each path.
+dendrogramPathCustom
+    :: (Renderable (Path V2 Double) b)
+    => (Dendrogram a -> QDiagram b V2 Double Any -> QDiagram b V2 Double Any)
+    -> Dendrogram (a, X)
+    -> QDiagram b V2 Double Any
+dendrogramPathCustom f = mconcat . fst . go []
+    where
+      go acc (Leaf (_, x))    = (acc, (x, 0))
+      go acc (Branch d l r) = (path : acc'', pos)
+        where
+          (acc',  (!xL, !yL)) = go acc  l
+          (acc'', (!xR, !yR)) = go acc' r
+
+          path = ( f (fmap fst l)
+                 . strokeP
+                 $ fromVertices [ p2 (xL, yL)
+                                , p2 (xL, d)
+                                , p2 (xL + ((xR - xL) / 2), d)
+                                ]
+                 )
+              <> ( f (fmap fst r)
+                 . strokeP
+                 $ fromVertices [ p2 (xR - ((xR - xL) / 2), d)
+                                , p2 (xR, d)
+                                , p2 (xR, yR)
+                                ]
+                 )
           pos  = (xL + (xR - xL) / 2, d)
 
 
