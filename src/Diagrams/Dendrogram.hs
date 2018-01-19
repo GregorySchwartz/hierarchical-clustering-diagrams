@@ -78,13 +78,16 @@ dendrogram :: (Monoid m, Semigroup m, Renderable (Path V2 Double) b) =>
 dendrogram = ((fst .) .) . dendrogram'
 
 -- | Same as 'dendrogram', but specifies function to apply to path and to
--- dendrogram and leaves (d,l).
+-- dendrogram and leaves using functions that take in the dendrogram and leaf
+-- diagrams (d,l). To leave the leaves alone and make the tree 3 times as large
+-- as the leaves, for instance, we would supply
+-- ((\tree items -> scaleToY (2 * height items) $ tree), curry snd).
 dendrogramCustom
     :: (Monoid m, Semigroup m, Renderable (Path V2 Double) b)
     => Width
     -> (a -> QDiagram b V2 Double m)
     -> (Dendrogram a -> QDiagram b V2 Double Any -> QDiagram b V2 Double Any)
-    -> (QDiagram b V2 Double m -> QDiagram b V2 Double m, QDiagram b V2 Double m -> QDiagram b V2 Double m)
+    -> (QDiagram b V2 Double m -> QDiagram b V2 Double m -> QDiagram b V2 Double m, QDiagram b V2 Double m -> QDiagram b V2 Double m -> QDiagram b V2 Double m)
     -> Dendrogram a
     -> QDiagram b V2 Double m
 dendrogramCustom = ((((fst .) .) .) .) . dendrogramCustom'
@@ -114,23 +117,27 @@ dendrogram' width_ drawItem dendro = (dia, dendroX)
 
 
 -- | Same as 'dendrogram'', but specifies function to apply to path and to
--- dendrogram and leaves (d,l).
+-- dendrogram and leaves using functions that take in the dendrogram and leaf
+-- diagrams (d,l). To leave the leaves alone and make the tree 3 times as large
+-- as the leaves, for instance, we would supply
+-- ((\tree items -> scaleToY (2 * height items) $ tree), curry snd).
 dendrogramCustom'
     :: (Monoid m, Semigroup m, Renderable (Path V2 Double) b)
     => Width
     -> (a -> QDiagram b V2 Double m)
     -> (Dendrogram a -> QDiagram b V2 Double Any -> QDiagram b V2 Double Any)
-    -> (QDiagram b V2 Double m -> QDiagram b V2 Double m, QDiagram b V2 Double m -> QDiagram b V2 Double m)
+    -> (QDiagram b V2 Double m -> QDiagram b V2 Double m -> QDiagram b V2 Double m, QDiagram b V2 Double m -> QDiagram b V2 Double m -> QDiagram b V2 Double m)
     -> Dendrogram a
     -> (QDiagram b V2 Double m, Dendrogram (a, X))
 dendrogramCustom' width_ drawItem drawPath (drawTree, drawItems) dendro =
     (dia, dendroX)
   where
-    dia = (path_ # value mempty # drawTree)
+    dia = (drawTree path_ items_)
                        ===
-                 (items # alignL # drawItems)
+                 (drawItems path_ items_)
 
-    path_ = dendrogramPathCustom drawPath dendroX
+    path_ = dendrogramPathCustom drawPath dendroX # value mempty
+    items_ = items # alignL
 
     (dendroX, items) =
         case width_ of
